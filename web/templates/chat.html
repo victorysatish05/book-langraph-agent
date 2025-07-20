@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Agent - Chat Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .llm-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .llm-selector select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .llm-selector select option {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.processing {
+            background: #f59e0b;
+        }
+
+        .status-dot.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .message-content {
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 18px;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .message.user .message-time {
+            color: rgba(255,255,255,0.8);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .agent-info {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 8px;
+            font-size: 0.85rem;
+        }
+
+        .agent-info-title {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+
+        .agent-info-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .agent-stat {
+            display: flex;
+            justify-content: space-between;
+            color: #64748b;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            min-height: 44px;
+            max-height: 120px;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 22px;
+            font-size: 1rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: #4f46e5;
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .send-button:hover {
+            transform: scale(1.05);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .control-button {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            color: #64748b;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-button:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-style: italic;
+            padding: 12px 16px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+
+        .tools-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+        }
+
+        .tools-title {
+            font-weight: 600;
+            color: #0369a1;
+            margin-bottom: 6px;
+        }
+
+        .tool-item {
+            color: #0284c7;
+            margin: 2px 0;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .chat-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .llm-selector {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div>
+                <div class="chat-title">🤖 Autonomous Agent</div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+            </div>
+            <div class="llm-selector">
+                <label for="llmSelect">LLM:</label>
+                <select id="llmSelect">
+                    {% for provider in providers %}
+                    <option value="{{ provider.value }}" 
+                            {% if provider.value == default_provider %}selected{% endif %}>
+                        {{ provider.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div>Hello! I'm your autonomous agent. I can help you accomplish various tasks using available tools. What would you like me to do?</div>
+                    <div class="message-time" id="welcomeTime"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="message-avatar">🤖</div>
+            <div>
+                Agent is thinking
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="controls">
+                <button class="control-button" onclick="clearChat()">Clear Chat</button>
+                <button class="control-button" onclick="showTools()">Show Tools</button>
+                <button class="control-button" onclick="showConfig()">Config</button>
+            </div>
+            <div class="chat-input-wrapper">
+                <textarea 
+                    id="chatInput" 
+                    class="chat-input" 
+                    placeholder="Type your message here..."
+                    rows="1"></textarea>
+                <button id="sendButton" class="send-button" onclick="sendMessage()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        const sessionId = '{{ session_id }}';
+        let eventSource = null;
+        let isProcessing = false;
+
+        // DOM elements
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const llmSelect = document.getElementById('llmSelect');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set welcome time
+            document.getElementById('welcomeTime').textContent = formatTime(new Date());
+
+            // Auto-resize textarea
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // Send on Enter (but not Shift+Enter)
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Start listening for updates
+            startEventStream();
+        });
+
+        function formatTime(date) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function updateStatus(status, text) {
+            statusDot.className = `status-dot ${status}`;
+            statusText.textContent = text;
+        }
+
+        function addMessage(role, content, timestamp = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = role === 'user' ? '👤' : '🤖';
+            const time = timestamp ? new Date(timestamp) : new Date();
+
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div>${content}</div>
+                    <div class="message-time">${formatTime(time)}</div>
+                </div>
+            `;
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addAgentInfo(agentInfo) {
+            const lastMessage = chatMessages.lastElementChild;
+            if (lastMessage && lastMessage.classList.contains('assistant')) {
+                const existingInfo = lastMessage.querySelector('.agent-info');
+                if (existingInfo) {
+                    existingInfo.remove();
+                }
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'agent-info';
+                infoDiv.innerHTML = `
+                    <div class="agent-info-title">Execution Summary</div>
+                    <div class="agent-info-stats">
+                        <div class="agent-stat">
+                            <span>Status:</span>
+                            <span>${agentInfo.is_complete ? '✅ Complete' : '⏳ Processing'}</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span>Iterations:</span>
+                            <span>${agentInfo.iteration_count}</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span>Tools Used:</span>
+                            <span>${agentInfo.tools_used}</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span>Errors:</span>
+                            <span>${agentInfo.errors}</span>
+                        </div>
+                    </div>
+                `;
+
+                lastMessage.querySelector('.message-content').appendChild(infoDiv);
+            }
+        }
+
+        function showTyping(show) {
+            typingIndicator.style.display = show ? 'flex' : 'none';
+            if (show) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || isProcessing) return;
+
+            // Add user message
+            addMessage('user', message);
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+
+            // Update UI
+            isProcessing = true;
+            sendButton.disabled = true;
+            updateStatus('processing', 'Processing...');
+            showTyping(true);
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        message: message,
+                        llm_provider: llmSelect.value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+
+                // Start listening for updates if not already connected
+                if (!eventSource) {
+                    console.log('[DEBUG_LOG] Starting EventSource after sending message');
+                    startEventStream();
+                }
+
+            } catch (error) {
+                console.error('Error sending message:', error);
+                showTyping(false);
+                addMessage('assistant', `Sorry, I encountered an error: ${error.message}`);
+                updateStatus('error', 'Error');
+                isProcessing = false;
+                sendButton.disabled = false;
+            }
+        }
+
+        function startEventStream() {
+            // Close existing connection if any
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            console.log('[DEBUG_LOG] Starting new EventSource connection');
+            eventSource = new EventSource(`/api/session/${sessionId}/stream`);
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.error) {
+                        console.error('Stream error:', data.error);
+                        return;
+                    }
+
+                    if (data.type === 'message') {
+                        console.log('[DEBUG_LOG] Received message:', data.data.role);
+                        showTyping(false);
+                        const message = data.data;
+                        if (message.role === 'assistant') {
+                            addMessage('assistant', message.content, message.timestamp);
+                        }
+                    } else if (data.type === 'status') {
+                        const status = data.data.status;
+                        console.log('[DEBUG_LOG] Received status:', status);
+
+                        if (status === 'processing') {
+                            updateStatus('processing', 'Processing...');
+                            showTyping(true);
+                        } else if (status === 'completed') {
+                            console.log('[DEBUG_LOG] Task completed, closing EventSource');
+                            updateStatus('', 'Ready');
+                            showTyping(false);
+                            isProcessing = false;
+                            sendButton.disabled = false;
+
+                            if (data.data.agent_info) {
+                                addAgentInfo(data.data.agent_info);
+                            }
+
+                            // Close the EventSource connection since task is complete
+                            if (eventSource) {
+                                eventSource.close();
+                                eventSource = null;
+                            }
+                        } else if (status === 'error') {
+                            console.log('[DEBUG_LOG] Task error, closing EventSource');
+                            updateStatus('error', 'Error');
+                            showTyping(false);
+                            isProcessing = false;
+                            sendButton.disabled = false;
+
+                            // Close the EventSource connection on error
+                            if (eventSource) {
+                                eventSource.close();
+                                eventSource = null;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error parsing stream data:', error);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('EventSource error:', event);
+
+                // Close the connection immediately on error
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+
+                updateStatus('error', 'Connection Error');
+
+                // Only retry if we're still processing and don't have an active connection
+                if (isProcessing && !eventSource) {
+                    console.log('[DEBUG_LOG] Retrying EventSource connection in 3 seconds');
+                    setTimeout(() => {
+                        if (isProcessing && !eventSource) {
+                            startEventStream();
+                        }
+                    }, 3000);
+                } else {
+                    updateStatus('', 'Ready');
+                }
+            };
+        }
+
+        async function clearChat() {
+            if (isProcessing) {
+                alert('Cannot clear chat while processing. Please wait.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/session/${sessionId}/clear`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Clear messages except welcome
+                    const messages = chatMessages.querySelectorAll('.message');
+                    messages.forEach((msg, index) => {
+                        if (index > 0) { // Keep first welcome message
+                            msg.remove();
+                        }
+                    });
+                    updateStatus('', 'Ready');
+                } else {
+                    alert('Failed to clear chat: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error clearing chat:', error);
+                alert('Failed to clear chat');
+            }
+        }
+
+        async function showTools() {
+            try {
+                const response = await fetch('/api/tools');
+                const data = await response.json();
+
+                if (data.success && data.tools.length > 0) {
+                    const toolsList = data.tools.map(tool => 
+                        `• **${tool.name}**: ${tool.description}`
+                    ).join('\n');
+
+                    addMessage('assistant', `Available tools (${data.count}):\n\n${toolsList}`);
+                } else {
+                    addMessage('assistant', 'No tools are currently available from the MCP server.');
+                }
+            } catch (error) {
+                console.error('Error fetching tools:', error);
+                addMessage('assistant', 'Failed to fetch available tools.');
+            }
+        }
+
+        async function showConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+
+                if (data.success) {
+                    const configInfo = `
+**Configuration Status:**
+
+**Available LLM Providers:** ${data.available_providers.join(', ')}
+**Default Provider:** ${data.default_provider}
+**MCP Server:** ${data.mcp_server_url}
+
+**API Key Status:**
+${Object.entries(data.api_key_status).map(([provider, status]) => 
+    `• ${provider.toUpperCase()}: ${status ? '✅ Configured' : '❌ Not configured'}`
+).join('\n')}
+                    `;
+
+                    addMessage('assistant', configInfo.trim());
+                } else {
+                    addMessage('assistant', 'Failed to fetch configuration information.');
+                }
+            } catch (error) {
+                console.error('Error fetching config:', error);
+                addMessage('assistant', 'Failed to fetch configuration information.');
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
